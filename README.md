@@ -1,0 +1,92 @@
+# CMS フロント制作パイプライン（cms-front-pipeline）
+
+Claude Design の自己展開バンドル HTML を、**共通コア CMS 用の静的 HTML ＋ PHP フロント**へ変換する制作用パイプライン。CMS エンジン（cms-core）や各案件リポ（`site/`）の **外**に置き、**案件横断で使い回す**ツール群。**依存なし・Node 標準モジュールのみ**で動く。
+
+> このリポジトリは「制作（ビルド）環境」であり、稼働するサイト本体ではない。実際に動くのは変換の成果物（各案件の `public/`）で、そちらは各案件リポ（`site/`）側で管理・デプロイする。
+
+---
+
+## リポジトリの範囲（追跡 / 除外）
+
+| 区分 | 対象 | 備考 |
+|---|---|---|
+| **追跡** | `tools/`（パイプライン本体）、`package.json`、`README.md`、`.gitignore`、`CLAUDE.md`、`handoff_*.md` | パイプラインとプロジェクト文書 |
+| **除外**（`.gitignore`） | `site/` | CMS本体＝独立 git リポジトリ（ネスト回避のため除外） |
+| | `build/` | 変換の中間生成物。再生成可能な使い捨て |
+| | `mockups/`・`*.bundle` | デザイン原本・重量物。別途アーカイブ保管 |
+| | `node_modules/`・`.claude/` | 依存（本来なし）・ローカル設定 |
+
+> ⚠️ **再変換にはデザイン原本 `mockups/` が別途必要**。重量物のため本リポジトリには含めない。デザインアーカイブから取得してワークスペース直下へ置くこと。
+
+---
+
+## 実行方法
+
+いずれか1つで完走する（挙動は `tools/convert.config.json` が駆動）:
+
+```
+npm run convert            # = node tools/convert.mjs
+tools/convert.bat          # ダブルクリック / 実行（Windows）
+pwsh tools/convert.ps1     # PowerShell
+```
+
+補助コマンド: `npm run analyze`（診断レポート）／`npm run dump`（コンテンツ抽出）。
+
+---
+
+## tools/ の構成
+
+| ファイル | 役割 | 区分 |
+|---|---|---|
+| `convert.mjs` | オーケストレータ。`extract-bundle` 実行後、`convert.config.json` の `postBuild` フックを順に呼ぶ | 汎用 |
+| `extract-bundle.mjs` | 設定駆動の変換本体（アセット/フォント/CSS/断片/静的 `.php` を生成） | 汎用 |
+| `lib/config.mjs` | `convert.config.json` ローダ。パスは **ROOT（本リポジトリ直下）基準**で解決 | 汎用 |
+| `convert.bat` / `convert.ps1` | launcher | 汎用 |
+| `analyze.mjs` / `dump-content.mjs` | 診断・抽出 | 汎用 |
+| `build-index.mjs` | `index.php` を組み立てる postBuild フック | **案件固有（花屋）** |
+| `convert.config.json` | 案件別設定（`pages`/`font`/`navExtra`/`postBuild`/`publicDir` 等） | **案件固有** |
+| `convert.config.sample.json` | `convert.config.json` の書式サンプル | 汎用 |
+
+**横展開時に触るのは基本 `convert.config.json` のみ**。動的ページ用の postBuild（`build-index.mjs`）だけが案件固有。
+
+---
+
+## データの流れ（一方向）
+
+```
+mockups/*.html ──[ tools/convert ]──▶ build/（中間生成物）──▶ <publicDir>（最終成果物・実際に動く）
+（デザイン原本・入力）    （変換ツール）        （使い捨て）              （各案件 site/public。デプロイ対象）
+```
+
+- **出力先**は `convert.config.json` の `publicDir`（このワークスペースでは `site/public`）。`lib/config.mjs` が ROOT 基準で絶対パスへ解決する。
+
+---
+
+## 重要な挙動
+
+- **アセットは相対パスで出力**：`extract-bundle.mjs` は画像を `assets/img/…`（先頭スラッシュ無し）で出力する。フロント各ページは公開ルート直下に横並びのため、相対にすることで**ルート公開・サブディレクトリ公開（例：既存 WordPress 同居の `/cms/` 配下でのテスト）双方で正しく解決**される。絶対（`/assets/…`）にするとサブディレクトリ配下で親（ルート）側を見に行き当たらない。
+- **動的ページは機械変換しない**：`index` / `gallery` 等はマークアップが案件固有のため、手組みするか postBuild フック（花屋は `build-index.mjs`）で組む。
+- **既知の制約**：`font` は単一ファミリ前提／`pages` の記述順がフォント・画像の連番採番順（確定後は順序を変えない）／`fonts.css` は先頭ページ canonical・`site.css` は全ページの base CSS を行 union。
+
+---
+
+## 新規案件への流用
+
+1. その案件の `mockups/`（デザイン原本）を用意
+2. `convert.config.json` を案件に合わせて調整（`pages`・`font`・`navExtra`・`postBuild`・`publicDir`）
+3. `npm run convert`
+4. 生成された案件の `public/` を、その案件リポ（`site/`）側で commit・デプロイ
+
+`build-index.mjs` は花屋固有のため、別案件は独自の postBuild を用意するか静的ページのみで構成する。
+
+---
+
+## 詳細ドキュメント
+
+変換の位置づけ・各フォルダの扱い・デプロイ手順の全体像は、CMS 側の設計文書
+**`site/docs/rollout_guide.md`**（「制作用フロント資産（mockups / build / tools）の扱い」「本番デプロイ」章）を参照。
+
+## 要件
+
+- Node.js（標準モジュールのみ・追加依存なし）
+- 変換自体は PHP / `.htaccess` を必要としない（静的生成のみ）。生成物の動作確認は CMS 側（`php -S` 等）で行う。

@@ -1,0 +1,16 @@
+{
+  "_comment": "Claude Design バンドル→静的/PHP 変換の案件別設定。案件ごとに差し替える（tools/ はコアリポ外なので複製時に一緒に運ばれる）。書き方は convert.config.sample.json を参照。",
+  "mockDir": "mockups",
+  "publicDir": "site/public",
+  "buildDir": "build",
+  "font": { "family": "zen-maru-gothic", "prefix": "zmg" },
+  "navExtra": ["contact"],
+  "pages": {
+    "index":   { "title": "トップ",                       "active": "home",    "role": "dynamic", "images": "inline" },
+    "gallery": { "title": "作品ギャラリー",               "active": "gallery", "role": "dynamic", "images": "gallery" },
+    "shop":    { "title": "店舗のご案内・アクセス",       "active": "shop",    "role": "static",  "images": "none" },
+    "faq":     { "title": "よくあるご質問",               "active": "faq",     "role": "static",  "images": "none" },
+    "privacy": { "title": "プライバシーポリシー・免責事項", "active": "privacy", "role": "static",  "images": "none" }
+  },
+  "postBuild": ["build-index.mjs"]
+}

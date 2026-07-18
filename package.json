@@ -1,0 +1,11 @@
+{
+  "name": "cms-front-pipeline",
+  "private": true,
+  "type": "module",
+  "description": "Claude Design バンドルHTML → 静的+PHP 変換の制作用パイプライン（cms-core リポ外）。依存なし・Node標準のみ。",
+  "scripts": {
+    "convert": "node tools/convert.mjs",
+    "analyze": "node tools/analyze.mjs",
+    "dump": "node tools/dump-content.mjs"
+  }
+}
