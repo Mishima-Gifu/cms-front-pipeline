@@ -43,6 +43,7 @@ pwsh tools/convert.ps1     # PowerShell
 | `lib/config.mjs` | `convert.config.json` ローダ。パスは **ROOT（本リポジトリ直下）基準**で解決 | 汎用 |
 | `convert.bat` / `convert.ps1` | launcher | 汎用 |
 | `analyze.mjs` / `dump-content.mjs` | 診断・抽出 | 汎用 |
+| `deploy-prep.mjs` / `deploy-prep.bat` | 本番FTP用デプロイツリー生成（配信物からコメント除去。→「本番デプロイ準備」） | 汎用 |
 | `build-index.mjs` | `index.php` を組み立てる postBuild フック | **案件固有（花屋）** |
 | `convert.config.json` | 案件別設定（`pages`/`font`/`navExtra`/`postBuild`/`publicDir` 等） | **案件固有** |
 | `convert.config.sample.json` | `convert.config.json` の書式サンプル | 汎用 |
@@ -55,7 +56,9 @@ pwsh tools/convert.ps1     # PowerShell
 
 ```
 mockups/*.html ──[ tools/convert ]──▶ build/（中間生成物）──▶ <publicDir>（最終成果物・実際に動く）
-（デザイン原本・入力）    （変換ツール）        （使い捨て）              （各案件 site/public。デプロイ対象）
+（デザイン原本・入力）    （変換ツール）        （使い捨て）              （各案件 site/public）
+                                                                        │
+                                              <publicDir> + site/lib ──[ tools/deploy-prep ]──▶ build/deploy/（FTPアップ対象）
 ```
 
 - **出力先**は `convert.config.json` の `publicDir`（このワークスペースでは `site/public`）。`lib/config.mjs` が ROOT 基準で絶対パスへ解決する。
@@ -69,6 +72,24 @@ mockups/*.html ──[ tools/convert ]──▶ build/（中間生成物）─�
 - **既知の制約**：`font` は単一ファミリ前提／`pages` の記述順がフォント・画像の連番採番順（確定後は順序を変えない）／`fonts.css` は先頭ページ canonical・`site.css` は全ページの base CSS を行 union。
 
 ---
+
+## 本番デプロイ準備（deploy-prep）※汎用
+
+ソースに残している設計意図コメント（CSS コメント等）を本番へ配信しないため、FTP アップ前に**デプロイツリーを生成**する:
+
+```
+npm run deploy-prep        # = node tools/deploy-prep.mjs
+tools/deploy-prep.bat      # ダブルクリック / 実行（Windows）
+```
+
+`build/deploy/`（毎回作り直し）へ `site/public` → `public/`・`site/lib` → `lib/` をコピーし、次の変換を行う。**FTP では `site/` から直接ではなく、この `build/deploy/` の中身をアップする**（public だけ上げて lib を上げ忘れる事故——未定義関数で全フロント 500——の防止も兼ねる）:
+
+- **`*.css`**：`/* ... */` コメントを除去（`content:"*/"` のような文字列内は誤爆しない）
+- **`*.php`**：HTML 領域の `<!-- ... -->` を除去する**安全網**。PHP コード領域（`<?php ... ?>` / `<?= ... ?>`）は触らないため、sitemap.php が echo する診断コメントのような「意図した出力」は保全される。除去が発生すると警告が出る → 規約どおり**ソース側を PHP コメント（`<?php /* ... */ ?>`）へ直す**こと
+- **`uploads/`**：画像実体は含めない（本番の実体は管理画面の登録で蓄積される。ローカルの検証用画像で本番を上書きしない）。PHP 実行禁止の `.htaccess` のみ維持
+- `config/config.php`・`data/app.sqlite` はツリーに含めない（本番サーバ上で管理する）
+
+> **コメント記述の規約**：テンプレート（`.php`）内の説明・設計意図に HTML コメントを使わない（配信されるため）。PHP コメントで書く。CSS コメントはソースに残してよい（配信物からは本ツールが除去する）。
 
 ## 新規案件への流用
 
