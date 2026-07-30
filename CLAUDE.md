@@ -1,118 +1,51 @@
-# CLAUDE.md（案件ワークスペース）
+# CLAUDE.md（cms-front-pipeline：制作パイプライン）
 
-このファイルは、本案件で作業する際に Claude（および開発者）が従うガイドラインです。
+このファイルは、**制作パイプライン（変換ツール群）そのものを開発・保守する**ときのガイドラインです。
 
-> 次の項目は `dev/CLAUDE.md`（親ディレクトリ）側に一本化しており、本ファイルには重複させていません。
+> 次の項目は `workspace/CMS/CLAUDE.md`（親ディレクトリ）側に一本化しており、本ファイルには重複させていません。
 > 言語／応答と成果物の長さ／スコープの扱い／サブエージェントの使い方／作業中の報告／
-> コメントの書き分け（HTML・CSS・PHP）／2リポ横展開モデルとマージ手順／モデル別の挙動調整。
+> コメントの書き分け（HTML・CSS・PHP）／3リポ横展開モデルとマージ手順／モデル別の挙動調整。
 
-## プロジェクト概要
+## このリポジトリの位置づけ
 
-静的サイト（HTML/CSS/JS + PHP）向けの、案件横断で流用する自作管理エンジン（共通コア CMS）を
-本案件向けに展開したワークスペース。WordPress・外部CMSは使わず、共用レンタルサーバ（Xserver等）上で動作させる。
+Claude Design の自己展開バンドル HTML を、共通コア CMS 用の**静的アセット＋PHPフロント**へ変換する Node 製ツール群。**案件横断で使い回す upstream** であり、稼働するサイト本体ではない（サーバ上では動かない）。
 
-- **フロントエンド**：静的HTML + 動的ページのみ `.php`（SQLiteを直接クエリ）
-- **管理画面**：自作PHP + SQLite の admin panel（cms-core と同一。案件で改変しない）
-- **DB**：SQLite（PDO経由・プリペアドステートメント必須）
-- **コンテンツモデル**：単一の `contents` テーブルに `type_slug` で種別を持たせる汎用設計
-
-設計・スキーマの詳細は `site/docs/core_schema_design.md` および `site/sql/01_schema.sql` を参照（いずれも読み取り専用扱い。後述「資産の区分」）。
-
-## ディレクトリ構成
-
-CMS 本体は **`site/`**（cms-core のクローン。origin=案件 / upstream=cms-core、upstream への push は DISABLED）。
-ワークスペース直下には、これに加えてフロント制作用のビルドパイプライン（**コアリポ外**）が置かれる。
+3リポは `workspace/CMS/` 直下に**並列**で置かれ、互いにネストしない。
 
 ```
-（案件ワークスペース直下 = dev/{案件名}/）
-site/         … CMS 本体（cms-core のクローン）
-  config/     … config.sample.php（コア資産）+ config.php（案件・非コミット）
-  lib/        … 共通処理（db / auth / csrf / sanitize / upload / media / layout / front / mailer / form）
-  public/     … 公開ルート（php -S のドキュメントルート）
-    admin/    … 管理画面（+ admin/assets/）※cms-core と同一
-    parts/    … フロント共通パーツ（header.php / footer.php）※案件固有
-    assets/   … デザイン資産（css / fonts / img）※案件固有
-    uploads/  … 画像実体（.htaccess でPHP実行禁止）+ thumbs/ ※案件固有
-    *.php     … フロント各ページ（index.php など）※案件固有
-  data/       … app.sqlite ※案件固有・非コミット
-  sql/        … 01_schema.sql / 02_sample_data.sql / setup.php
-  docs/       … 設計書・手順書（core_schema_design.md / contact_form_design.md / rollout_guide.md / review_admin_20260712.md）
-  README.md   … コアの README
-tools/ build/ mockups/  … フロント制作のビルドパイプライン（コアリポ外・案件固有）
-README.md               … 案件固有のメモ（独自ドメイン・デプロイ先・引き継ぎ事項）
-package.json            … ビルドパイプライン用
+workspace/CMS/
+  cms-core/            … CMSエンジンの upstream（PHP + SQLite）
+  cms-front-pipeline/  … 本リポ。mockups/・build/ もこの直下
+  {案件名}/             … 案件リポ。変換の出力先は ../{案件名}/public
 ```
 
-## 資産の区分（最重要）
+## 最重要：案件固有物を追跡させない
 
-`site/` 配下はコア資産と案件資産が混在している。**どちらに属するかを確認してから編集すること。**
+本リポは「**汎用ツール＋雛形のみ**」を追跡する（`cms-core` が `config.php` を追跡せず `config.sample.php` だけを配るのと同じ流儀）。案件固有物が混ざると、2案件目を clone した瞬間に1案件目の設定が初期状態として付いてきて、双方向の上書き競合を起こす。
 
-| 区分 | 対象 | 案件側での扱い |
-|---|---|---|
-| **コア資産** | `site/lib/`・`site/public/admin/`・`site/sql/`・`site/docs/`・`site/config/config.sample.php`・`site/README.md` | **編集しない**。改善が必要なら cms-core 側で対応し、マージで取り込む |
-| **案件資産** | `site/public/parts/`・`site/public/assets/`・`site/public/*.php`（フロント各ページ） | 案件ごとに差し替える |
-| **案件データ** | `site/config/config.php`（実値）・`site/data/app.sqlite`・`site/public/uploads/` の実体 | 案件ごと。コミットしない |
-| **制作パイプライン** | 案件直下の `tools/`・`build/`・`mockups/`・`README.md`・`package.json` | 案件固有（コアリポ外） |
+| 追跡する | 追跡しない（`.gitignore`） |
+|---|---|
+| `tools/`（汎用ツール・`lib/`・雛形 `convert.config.sample.json`）、`package.json`、`README.md`、`.gitignore`、`CLAUDE.md` | `tools/convert.config.json`（案件別設定）、`tools/project/`（案件固有 postBuild フック）、`handoff_*.md`、`build/`、`mockups/`・`*.bundle`、`node_modules/`、`.claude/` |
 
-- コア資産を案件側で上書きすると `git merge upstream` が衝突する。この規律が守られている限り、衝突はコア側に限定される。
-- **コア資産に該当する変更は案件側で行わない。** 上表で分類し、コア資産に当たる場合は変更内容を提案して止まること。
-
-## 基本原則
-
-### 1. ソースコード内コメント
-- 処理の意図・設計判断の理由を、適宜コメントとして残す。
-- 「何をしているか」だけでなく「なぜそうしているか」を補う。
-- 特にセキュリティ上の理由（エスケープ・プレースホルダ・CSRF等）や、SQLiteの仕様依存（`PRAGMA foreign_keys` など）は必ず明記する。
-- 一方で、**自明な処理に説明コメントを付けない**。コード量に対してコメントが過剰にならないようにする。
-
-### 2. 共通化を意識する
-- 案件横断で流用することが前提。案件固有のロジックを共通コアに持ち込まない。
-- 種別追加はデータ追加（`content_types` に1行INSERT）で吸収し、スキーマ変更やコード分岐の増殖を避ける。
-- 繰り返し処理は `site/lib/` の共通処理へ集約する。ただし `site/lib/` はコア資産のため、案件側では直接編集せず cms-core 側での対応を提案する。
-- デザイン・フロントエンドのみ案件ごとに差し替える設計を維持する。
-
-### 3. プラン作成時のレビュー（適用条件）
-以下のいずれかに該当する場合、`plan-reviewer` でレビューを実施する。実施要領は `dev/CLAUDE.md`「サブエージェントの使い方」に従う。
-
-- DB スキーマの変更を伴う
-- コア資産（`site/lib/`・`site/public/admin/`・`site/sql/`）に関わる変更を含む
-- 複数ファイルにまたがる機能追加
-
-### 4. ドキュメントの扱い
-- **案件側でコアのドキュメント（`site/docs/`・`site/sql/`・`site/README.md`）を更新しない。** いずれもコア資産。
-- 設計・スキーマ・運用手順の変更が必要になった場合は、cms-core 側で修正 → commit/push → 案件側で `git fetch upstream && git merge` して取り込む。案件セッションでは、必要な変更内容を提案して止まること。
-- 案件固有の記録（独自ドメイン・デプロイ先・引き継ぎ事項）は、**案件直下の `README.md`** 等へ書く。
-- 該当する変更が無ければ、この項目について何も出力しない。
-
-### 5. Git管理
-- `site/` は origin=案件 / upstream=cms-core。**upstream への push は行わない**（DISABLED）。
-- **コミットしないもの**：`site/config/config.php`（実値）、`site/data/app.sqlite`、`site/public/uploads/` の画像実体。
-- 認証情報・個人情報をコミット・ログ・出力に残さない。
-
-### 6. 不明点の扱い
-- **大きな設計判断**（外部連携方式、スキーマ構造、認証方式など、後から変えにくいもの）は、推測で進めず **確認 → 合意 → 実装** の順を守る。段階的に確認してから反映する。
-- 一方、**解釈が分かれても成果物が大きく変わらない点は自分で判断して進める**。判断した内容は作業後に一文で伝えればよい。
-- 不明点があっても、まず既存コード・設計書から読み取れる前提を整理し、それでも決まらない場合にのみ確認する。
-- 確認する場合は質問を並べ立てず、最も影響の大きい1〜2点に絞ること。
-
-## セキュリティ要点（必須）
-
-- SQLは必ずプレースホルダを使う（文字列連結でSQLを組み立てない）。
-- 出力は必ずエスケープ（`h()` 経由）する。
-- 状態変更フォームには CSRF トークンを付与（`csrf_field()` / `csrf_verify()`）。
-- 本文は保存時に `sanitize_richhtml()` で許可タグのみへ正規化。表示側でも `h()` で最終防御。
-- 画像アップロードは拡張子ホワイトリスト + MIME実体 + サイズ検証 + サーバ側リネーム。保存先は PHP実行禁止。
-- 管理画面は本番でHTTPS必須。
+- **成果物・ドキュメントに顧客名・案件名を含めない**。案件例が必要なときは `{案件名}` と書く。
+- 案件固有の運用メモ・引き継ぎは、案件リポの `docs/` 側へ置く（本リポには残さない）。
+- 汎用化できないロジック（HTML 文字列リテラルを直接探して置換する類）は `tools/project/` へ隔離し、`convert.config.json` の `postBuild` から呼ぶ。
 
 ## コーディング規約
 
-- **言語**：PHP 8.x
-- **DB接続**：接続直後に必ず `PRAGMA foreign_keys = ON;` を実行する（SQLiteは接続ごとに必要）。`db()` 以外で直接接続しない。
-- **日時**：ISO8601文字列（`datetime('now','localtime')`）で統一する。
-- **文字コード**：UTF-8。
+- **依存を増やさない**。Node 標準モジュールのみで実装する（`npm install` 不要であることがこのツールの前提）。ESM（`.mjs`）で書く。
+- **パス解決は cwd 非依存**にする。設定値のパス（`mockDir`/`publicDir`/`buildDir`）は `tools/lib/config.mjs` の `ROOT`（本リポジトリ直下）基準、`postBuild` フックは `TOOLS_DIR`（`tools/`）基準で解決する。新しいツールを足すときもこの2つの基準を使い、相対パスを cwd から解決しない。
+- **postBuild フックの契約**：各モジュールは `export function postBuild(cfg)` を提供する。`cfg` には `publicDirAbs` / `buildDirAbs` などの解決済み絶対パスが入っている。
+- 処理の意図・設計判断の理由をコメントで補う。自明な処理には付けない。
 
-## 成果物・ドキュメントに関する注意
+## 変更時の注意
 
-- 成果物・ドキュメント類に**特定の会社名・顧客名を含めない**こと。汎用的に流用できる形で作成する。
-  - 案件固有の顧客名・ドメイン等は、案件直下の `README.md` に限って記載してよい。
-- 新規案件の立ち上げ〜本番公開の具体手順は **`site/docs/rollout_guide.md`** を参照。
+- **再変換は `publicDir` 配下（＝案件リポの `public/`）を上書きする**。案件側で手作業の改修が入っていると失われるため、出力範囲を広げる変更は影響を明示すること。
+- **変換の実機確認にはデザイン原本 `mockups/` が必要**。リポジトリに含まれていないため、手元に無い端末では実行できない。その場合は静的な確認（設定のパス解決・モジュールの import 解決）に留め、実機確認は `mockups/` がある端末へ回す。
+- `pages` の記述順はフォント・画像の連番採番順。既存案件の順序を変えるとアセット名がズレる。
+- 案件リポ（`{案件名}/`）と `cms-core/` は別リポジトリ。本リポのセッションでは変更しない（変換の出力先を除く）。
+
+## Git管理
+
+- 追跡外のファイル（`convert.config.json`・`tools/project/`・`handoff_*.md`）を `git add -A` で巻き込まないこと。commit 前に `git status` で確認する。
+- 認証情報・個人情報をコミット・ログ・出力に残さない。

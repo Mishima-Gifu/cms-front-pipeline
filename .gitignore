@@ -4,8 +4,15 @@
 # 独立リポ・使い捨て・重量物・ローカル設定は追跡しない。
 # ============================================================
 
-# CMS本体は独立した git リポジトリ（ネスト回避のため必須除外）
-/site/
+# 案件固有の変換設定（convert.config.sample.json をコピーして案件ごとに作る。
+# cms-core が config.php を追跡せず config.sample.php だけを配る流儀に揃える）
+/tools/convert.config.json
+
+# 案件固有の postBuild フック（HTML 文字列リテラル依存で汎用化できない動的ページ組み立て）
+/tools/project/
+
+# 案件・コア間の引き継ぎ文書（案件リポの docs/ へ収容するか、都度手渡しで運ぶ）
+/handoff_*.md
 
 # 変換の中間生成物（再生成可能な使い捨て。extract-bundle で再作成される）
 /build/
