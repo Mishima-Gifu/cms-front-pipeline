@@ -43,7 +43,11 @@ tools/convert.bat          # ダブルクリック / 実行（Windows）
 pwsh tools/convert.ps1     # PowerShell
 ```
 
-補助コマンド: `npm run analyze`（診断レポート）／`npm run dump`（コンテンツ抽出）。
+変換は案件リポの `public/` を上書きするため、**開始前に対象案件を表示して `[y/N]` を確認する**。確認を省略するには `--yes`（`-y`）を付ける。対話できない標準入力（パイプ・リダイレクト）では中止するので、自動実行では `--yes` が必要。
+
+案件別の設定で実行する場合は `--config` を渡す（`npm run convert -- --config tools/convert.config.{案件名}.json`）。**`convert.bat` のダブルクリックは既定の `tools/convert.config.json` 固定**で `--config` を渡せないため、案件別 config を使うならターミナルから実行すること。
+
+補助コマンド: `npm run analyze`（診断レポート）／`npm run dump`（コンテンツ抽出）。※この2本はページ構成と `mockups/` 直下をハードコードした診断用ツールで、`mockDir` を案件別（`mockups/{案件名}/`）にすると動かない。
 
 ---
 
@@ -81,7 +85,7 @@ mockups/*.html ──[ tools/convert ]──▶ build/（中間生成物）─�
 ## 重要な挙動
 
 - **アセットは相対パスで出力**：`extract-bundle.mjs` は画像を `assets/img/…`（先頭スラッシュ無し）で出力する。フロント各ページは公開ルート直下に横並びのため、相対にすることで**ルート公開・サブディレクトリ公開（例：既存 WordPress 同居の `/cms/` 配下でのテスト）双方で正しく解決**される。絶対（`/assets/…`）にするとサブディレクトリ配下で親（ルート）側を見に行き当たらない。
-- **動的ページは機械変換しない**：`index` / `gallery` 等はマークアップが案件固有のため、手組みするか postBuild フック（`tools/project/` 配下）で組む。
+- **動的ページは機械変換しない**：`index` / `gallery` 等はマークアップが案件固有のため、手組みするか postBuild フック（`tools/project/` 配下）で組む。なお `<buildDir>/fragments` は変換のたびに作り直されるため、断片を手編集してそこに残す作業はできない（案件間で断片が混入する事故を防ぐための挙動）。手を入れるなら出力先の `.php` 側か postBuild フックで行う。
 - ⚠️ **再変換は `publicDir` 配下を上書きする**：案件リポの `public/` を手で改修している場合（レスポンシブ対応の `site.css`・静的ページ・`index.php` 等）、再変換で失われる。実行前に改修の再適用方針を決めること。`parts/header.php`・`parts/footer.php` はパイプライン生成外なので影響しない。
 - **既知の制約**：`font` は単一ファミリ前提／`pages` の記述順がフォント・画像の連番採番順（確定後は順序を変えない）／`fonts.css` は先頭ページ canonical・`site.css` は全ページの base CSS を行 union。
 
@@ -111,13 +115,15 @@ tools/deploy-prep.bat      # ダブルクリック / 実行（Windows）
 
 ## 新規案件への流用
 
-1. `tools/convert.config.sample.json` をコピーして `tools/convert.config.json` を作る（追跡外）
-2. その案件の `mockups/`（デザイン原本）を本リポジトリ直下へ用意
-3. `convert.config.json` を案件に合わせて調整（`publicDir` は隣に clone した `../{案件名}/public`。ほか `pages`・`font`・`navExtra`・`postBuild`）
-4. `npm run convert`
+1. `tools/convert.config.sample.json` をコピーして設定を作る（追跡外）。1案件だけなら `tools/convert.config.json`、**複数案件を並行するなら `tools/convert.config.{案件名}.json`** にして実行時に `--config` で指定する
+2. その案件の `mockups/`（デザイン原本）を **`mockups/{案件名}/`** へ用意する
+3. 設定を案件に合わせて調整（`publicDir` は隣に clone した `../{案件名}/public`、`mockDir` は `mockups/{案件名}`、`buildDir` は `build/{案件名}`。ほか `pages`・`font`・`navExtra`・`postBuild`）
+4. `npm run convert`（案件別 config なら `npm run convert -- --config tools/convert.config.{案件名}.json`）。表示された対象案件を確認して `y`
 5. 生成された案件の `public/` を、その案件リポ側で commit・デプロイ
 
-動的ページ用の postBuild フックは案件ごとに `tools/project/` へ用意する（追跡外）。静的ページのみで構成するなら `postBuild` は `[]` でよい。
+動的ページ用の postBuild フックは案件ごとに **`tools/project/{案件名}/`** へ用意し、`"postBuild": ["project/{案件名}/build-index.mjs"]` と書く（追跡外）。1階層深くなるため、フック内の import は `../../lib/config.mjs` になる。静的ページのみで構成するなら `postBuild` は `[]` でよい。
+
+**案件ごとに分ける理由**：`mockups/`・`build/fragments/`・`tools/project/` のファイル名はいずれも案件名を含まない。共有すると、次の案件の変換が前案件の残骸（バンドル・断片・フック）を読み、**エラーを出さずに別案件の内容を出力する**。
 
 ---
 
