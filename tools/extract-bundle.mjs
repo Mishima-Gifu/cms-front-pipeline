@@ -29,6 +29,9 @@ export function extractBundle(cfg) {
   const IMG_DIR = path.join(ASSETS, 'img');
   const CSS_DIR = path.join(ASSETS, 'css');
   const FRAG = path.join(cfg.buildDirAbs, 'fragments');
+  // 断片は毎回作り直す。ファイル名に案件名が入らないため、buildDir を案件間で共有していると
+  // 別案件・旧構成の残骸が残り、postBuild がそれを読んで本文が混入する（エラーにならない）。
+  fs.rmSync(FRAG, { recursive: true, force: true });
   for (const d of [FONT_DIR, IMG_DIR, CSS_DIR, FRAG]) fs.mkdirSync(d, { recursive: true });
 
   const PAGES = cfg.pages;
@@ -201,7 +204,14 @@ ${mid}
 }
 
 // ---- CLI 単体実行（node tools/extract-bundle.mjs）: 既定 config を読んで実行 ----
+// 単体実行でも案件 public/ を上書きするため convert.mjs と同じ確認を通す。
+// この経路は --config を解釈しない（既定 config 固定）ので、受けるのは --yes のみ。
+// トップレベル await はこの if の中だけ。convert.mjs から import された場合は
+// 条件が偽で評価されず、モジュールが async module になるだけで挙動は変わらない。
 import { fileURLToPath } from 'node:url';
+import { confirmPublicWrite } from './lib/confirm.mjs';
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  extractBundle(loadConfig());
+  const cfg = loadConfig();
+  const yes = process.argv.includes('--yes') || process.argv.includes('-y');
+  if (await confirmPublicWrite(cfg, { yes })) extractBundle(cfg);
 }

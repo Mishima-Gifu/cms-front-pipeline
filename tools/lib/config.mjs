@@ -15,6 +15,8 @@ export const DEFAULT_CONFIG = path.join(TOOLS_DIR, 'convert.config.json');
  * configPath 省略時は tools/convert.config.json を使う。
  * cfg.mockDir / publicDir / buildDir は「ワークスペース直下からの相対」を前提とし、
  * 解決済み絶対パスを cfg.mockDirAbs / publicDirAbs / buildDirAbs として付与する。
+ * あわせて cfg.projectName（案件リポのディレクトリ名）を付与する。
+ * ＝ publicDir の親。表示・確認プロンプト・出力先の切り分けに使う共通の導出元。
  */
 export function loadConfig(configPath) {
   const p = configPath ? path.resolve(configPath) : DEFAULT_CONFIG;
@@ -23,5 +25,6 @@ export function loadConfig(configPath) {
   cfg.mockDirAbs = path.resolve(ROOT, cfg.mockDir);
   cfg.publicDirAbs = path.resolve(ROOT, cfg.publicDir);
   cfg.buildDirAbs = path.resolve(ROOT, cfg.buildDir);
+  cfg.projectName = path.basename(path.dirname(cfg.publicDirAbs));
   return cfg;
 }

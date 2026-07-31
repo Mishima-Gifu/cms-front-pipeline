@@ -161,7 +161,7 @@ function main() {
   // 出力先に案件名（案件リポのディレクトリ名）を挟む。取り違えが起きるのは FTP クライアントで
   // アップロード元を選ぶ瞬間＝ツールの外なので、パス自体に案件名を含めて構造的に防ぐ。
   // 削除対象も自案件のサブツリーだけになり、他案件の準備済みツリーを壊さない。
-  const projectName = path.basename(siteDir);
+  const projectName = cfg.projectName;
   const outDir = path.join(ROOT, 'build', 'deploy', projectName);
 
   if (!fs.existsSync(publicDir)) {
