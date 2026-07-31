@@ -4,13 +4,13 @@
 # 独立リポ・使い捨て・重量物・ローカル設定は追跡しない。
 # ============================================================
 
-# 案件固有の変換設定（convert.config.sample.json をコピーして案件ごとに作る。
+# 案件固有の変換設定（configs/_sample.json をコピーして configs/{案件名}.json を作る。
 # cms-core が config.php を追跡せず config.sample.php だけを配る流儀に揃える）
-# 複数案件を1端末で並行するときは convert.config.{案件名}.json に分けて
-# --config で明示指定するため、ワイルドカードで除外し雛形だけを否定パターンで戻す
+# 案件が増えても一覧しやすいよう configs/ に集約し、実行時は --config で明示指定する。
+# ディレクトリごと除外し、雛形だけを否定パターンで戻す
 # （否定は後勝ちなので、必ずこの順序を保つこと）。
-/tools/convert.config*.json
-!/tools/convert.config.sample.json
+/configs/*.json
+!/configs/_sample.json
 
 # 案件固有の postBuild フック（HTML 文字列リテラル依存で汎用化できない動的ページ組み立て）
 /tools/project/

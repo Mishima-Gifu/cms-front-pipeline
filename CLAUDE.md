@@ -25,11 +25,12 @@ workspace/CMS/
 
 | 追跡する | 追跡しない（`.gitignore`） |
 |---|---|
-| `tools/`（汎用ツール・`lib/`・雛形 `convert.config.sample.json`）、`package.json`、`README.md`、`.gitignore`、`CLAUDE.md` | `tools/convert.config.json`（案件別設定）、`tools/project/`（案件固有 postBuild フック）、`handoff_*.md`、`build/`、`mockups/`・`*.bundle`、`node_modules/`、`.claude/` |
+| `tools/`（汎用ツール・`lib/`）、`configs/_sample.json`（雛形）、`package.json`、`README.md`、`docs/`（操作マニュアル等・汎用のみ）、`.gitignore`、`CLAUDE.md` | `configs/{案件名}.json`（案件別設定）、`tools/project/`（案件固有 postBuild フック）、`handoff_*.md`、`build/`、`mockups/`・`*.bundle`、`node_modules/`、`.claude/` |
 
 - **成果物・ドキュメントに顧客名・案件名を含めない**。案件例が必要なときは `{案件名}` と書く。
 - 案件固有の運用メモ・引き継ぎは、案件リポの `docs/` 側へ置く（本リポには残さない）。
-- 汎用化できないロジック（HTML 文字列リテラルを直接探して置換する類）は `tools/project/` へ隔離し、`convert.config.json` の `postBuild` から呼ぶ。
+- 汎用化できないロジック（HTML 文字列リテラルを直接探して置換する類）は `tools/project/` へ隔離し、案件別 config の `postBuild` から呼ぶ。
+- **案件別設定は `configs/{案件名}.json`**（雛形 `configs/_sample.json` のみ追跡）。既定の設定ファイルは持たず、`loadConfig()` は `--config` 未指定なら指定を促して停止する。この前提を崩す変更（既定 config へのフォールバック復活、ダブルクリック起動を推奨する記述）を入れないこと。
 
 ## コーディング規約
 
@@ -47,5 +48,5 @@ workspace/CMS/
 
 ## Git管理
 
-- 追跡外のファイル（`convert.config.json`・`tools/project/`・`handoff_*.md`）を `git add -A` で巻き込まないこと。commit 前に `git status` で確認する。
+- 追跡外のファイル（`configs/{案件名}.json`・`tools/project/`・`handoff_*.md`）を `git add -A` で巻き込まないこと。commit 前に `git status` で確認する。
 - 認証情報・個人情報をコミット・ログ・出力に残さない。

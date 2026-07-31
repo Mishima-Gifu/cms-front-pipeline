@@ -19,7 +19,9 @@
 //   - uploads/ : 画像実体はコピーしない（本番の実体は管理画面の登録で蓄積される運用。
 //                ローカルの検証用画像で本番を上書きしないため）。.htaccess（PHP実行禁止）のみ維持。
 //
-// 使い方: npm run deploy-prep（= node tools/deploy-prep.mjs）／tools/deploy-prep.bat
+// 使い方: npm run deploy-prep -- --config configs/{案件名}.json
+//         （= node tools/deploy-prep.mjs --config configs/{案件名}.json）
+//         convert と同じ案件別設定を読む（publicDir から対象案件を決める）。--config は必須。
 //         FTP では build/deploy/{案件名}/ の中身（public/・lib/）を本番の対応ディレクトリへアップする。
 //         config/config.php と data/app.sqlite は本番サーバ上で管理し、このツリーには含めない。
 import fs from 'node:fs';
@@ -223,4 +225,11 @@ function main() {
   console.log(`[deploy-prep] FTP では build/deploy/${projectName}/ の中身（public/・lib/）をアップしてください。`);
 }
 
-main();
+// 設定未指定などの想定内の失敗は、スタックトレースではなく1行のメッセージで返す
+// （このツールの利用者は運用者で、読むのは docs/operation_manual.md の対処表）。
+try {
+  main();
+} catch (err) {
+  console.error(`[deploy-prep] 失敗: ${err.message}`);
+  process.exitCode = 1;
+}

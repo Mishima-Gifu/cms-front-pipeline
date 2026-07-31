@@ -6,7 +6,7 @@
 //   - role:'static' のページを parts/ include の .php として出力
 //   - images:'gallery' のページ用に <buildDir>/gallery-items.json（id->画像パス）を出力
 //
-// 設定は convert.config.json（ページ構成・フォント名・出力先など）で駆動する。
+// 設定は案件別 config（configs/{案件名}.json：ページ構成・フォント名・出力先など）で駆動する。
 // 案件固有のハードコードは持たず、新規案件は config 差し替えのみで流用できる。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -203,15 +203,17 @@ ${mid}
   console.log(`fragments only (dynamic, hand-authored/postBuild): ${dynamicPages.join(' / ') || '(none)'}`);
 }
 
-// ---- CLI 単体実行（node tools/extract-bundle.mjs）: 既定 config を読んで実行 ----
+// ---- CLI 単体実行（node tools/extract-bundle.mjs --config configs/{案件名}.json）----
 // 単体実行でも案件 public/ を上書きするため convert.mjs と同じ確認を通す。
-// この経路は --config を解釈しない（既定 config 固定）ので、受けるのは --yes のみ。
+// convert.mjs と同様 --config は必須（既定の設定ファイルは持たない）。
+// postBuild フックはこの経路では走らないので、動的ページを持つ案件は convert.mjs から実行すること。
 // トップレベル await はこの if の中だけ。convert.mjs から import された場合は
 // 条件が偽で評価されず、モジュールが async module になるだけで挙動は変わらない。
 import { fileURLToPath } from 'node:url';
 import { confirmPublicWrite } from './lib/confirm.mjs';
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const cfg = loadConfig();
+  const ci = process.argv.indexOf('--config');
+  const cfg = loadConfig(ci !== -1 ? process.argv[ci + 1] : undefined);
   const yes = process.argv.includes('--yes') || process.argv.includes('-y');
   if (await confirmPublicWrite(cfg, { yes })) extractBundle(cfg);
 }

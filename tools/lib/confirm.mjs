@@ -5,8 +5,9 @@
 //   convert は別リポの成果物（手改修済みの site.css・静的ページ・index.php 等）を
 //   直接上書きするため、未コミットの改修が失われる。判断が逆になる。
 // なぜ .bat 側ではなくここなのか:
-//   convert.bat のダブルクリックは既定 config 固定で --config を渡せないため、
-//   案件別 config を用意しても案件名の目視がこの経路の唯一の歯止めになる。
+//   起動経路（npm run / node 直叩き / .bat / .ps1）に依存せず必ず通したいため。
+//   運用規約では案件名入り config を --config で明示指定するが、指定ミス（別案件の
+//   config を渡す）はツールから見て正常な入力であり、目視確認だけが歯止めになる。
 import readline from 'node:readline/promises';
 
 /**

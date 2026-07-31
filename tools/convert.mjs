@@ -1,10 +1,13 @@
 // Claude Design バンドル → 静的アセット＋PHP 変換の 1 コマンド・オーケストレータ。
 //
 // 使い方:
-//   node tools/convert.mjs                 … tools/convert.config.json で変換
-//   node tools/convert.mjs --config x.json … 別の設定で変換
-//   node tools/convert.mjs --yes           … 案件 public/ 上書きの確認を省略する
-//   （Windows は tools/convert.bat / convert.ps1 をダブルクリック or 実行でも可）
+//   node tools/convert.mjs --config configs/{案件名}.json  … 案件を明示して変換（--config は必須）
+//   node tools/convert.mjs --config … --yes                … 上書き確認を省略する
+//   （Windows は tools/convert.bat / convert.ps1 でも可。引数はそのまま渡る）
+//
+// 運用規約: 案件別設定は configs/{案件名}.json に集約し、実行時に --config で明示指定する。
+//   既定の設定ファイルを持たないため、付け忘れは loadConfig() が止める
+//   （＝別案件の設定で黙って完走しない）。.bat のダブルクリックは --config を渡せないので使わない。
 //
 // 実行順: extractBundle(cfg) → cfg.postBuild の各モジュールの postBuild(cfg) を順に実行。
 //

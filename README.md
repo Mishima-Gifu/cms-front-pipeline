@@ -6,10 +6,16 @@ Claude Design の自己展開バンドル HTML を、**共通コア CMS 用の�
 
 3リポ（`cms-core` / `cms-front-pipeline` / 案件リポ）は **`workspace/CMS/` 直下に並列**で置く（互いにネストしない）。本リポから案件リポは `../{案件名}/` で指す。
 
+> 🔰 **実際に手を動かす手順**（準備・実行・確認・FTP アップ・エラー対処）は **[docs/operation_manual.md](docs/operation_manual.md)** にまとめてある。本 README は仕様と設計の根拠を扱う。
+
 ```
 workspace/CMS/
   cms-core/            … CMSエンジンの upstream
-  cms-front-pipeline/  … 本リポ（mockups/ build/ もこの直下）
+  cms-front-pipeline/  … 本リポ
+    tools/             …   汎用ツール（追跡）
+    configs/           …   案件別設定 {案件名}.json（雛形 _sample.json のみ追跡）
+    mockups/{案件名}/   …   デザイン原本（追跡外）
+    build/{案件名}/     …   中間生成物・デプロイツリー（追跡外）
   {案件名}/             … 案件リポ（変換の出力先 ../{案件名}/public）
 ```
 
@@ -21,8 +27,8 @@ workspace/CMS/
 
 | 区分 | 対象 | 備考 |
 |---|---|---|
-| **追跡** | `tools/`（`convert.config.json`・`project/` を除く）、`package.json`、`README.md`、`.gitignore`、`CLAUDE.md` | 汎用ツールと雛形 |
-| **除外**（`.gitignore`） | `tools/convert.config.json` | 案件別設定。`convert.config.sample.json` をコピーして作る |
+| **追跡** | `tools/`（`project/` を除く）、`configs/_sample.json`、`package.json`、`README.md`、`docs/`、`.gitignore`、`CLAUDE.md` | 汎用ツールと雛形 |
+| **除外**（`.gitignore`） | `configs/*.json`（`_sample.json` を除く） | 案件別設定。`configs/_sample.json` をコピーして `configs/{案件名}.json` を作る |
 | | `tools/project/` | 案件固有の postBuild フック（汎用化不可） |
 | | `handoff_*.md` | 引き継ぎ文書。案件リポの `docs/` へ収容するか都度手渡し |
 | | `build/` | 変換の中間生成物。再生成可能な使い捨て |
@@ -35,37 +41,42 @@ workspace/CMS/
 
 ## 実行方法
 
-いずれか1つで完走する（挙動は `tools/convert.config.json` が駆動）:
+**案件別設定は `configs/{案件名}.json` に集約し、実行時に `--config` で明示指定する**。既定の設定ファイルは持たない（`--config` 省略時はツールが指定を促して止まる）。これにより「どの案件に対して実行しているか」が常にコマンドへ現れ、指定漏れのまま別案件を上書きすることがない。
 
 ```
-npm run convert            # = node tools/convert.mjs
-tools/convert.bat          # ダブルクリック / 実行（Windows）
-pwsh tools/convert.ps1     # PowerShell
+npm run convert -- --config configs/{案件名}.json     # = node tools/convert.mjs --config …
+node tools/convert.mjs --config configs/{案件名}.json
+tools/convert.bat --config configs/{案件名}.json      # 引数は素通しされる（処理後 pause）
+pwsh tools/convert.ps1 --config configs/{案件名}.json
 ```
+
+`npm run` 経由では `--` の有無に注意する。`npm run convert --config …` と書くと npm が `--config` を横取りしてツールへ届かない。
+
+**`.bat` のダブルクリック起動は使わない**（`--config` を渡せない）。
 
 変換は案件リポの `public/` を上書きするため、**開始前に対象案件を表示して `[y/N]` を確認する**。確認を省略するには `--yes`（`-y`）を付ける。対話できない標準入力（パイプ・リダイレクト）では中止するので、自動実行では `--yes` が必要。
 
-案件別の設定で実行する場合は `--config` を渡す（`npm run convert -- --config tools/convert.config.{案件名}.json`）。**`convert.bat` のダブルクリックは既定の `tools/convert.config.json` 固定**で `--config` を渡せないため、案件別 config を使うならターミナルから実行すること。
+`node tools/extract-bundle.mjs --config configs/{案件名}.json` の単体実行も可能だが postBuild フックは走らない（動的ページを持つ案件では `convert.mjs` を使う）。
 
 補助コマンド: `npm run analyze`（診断レポート）／`npm run dump`（コンテンツ抽出）。※この2本はページ構成と `mockups/` 直下をハードコードした診断用ツールで、`mockDir` を案件別（`mockups/{案件名}/`）にすると動かない。
 
 ---
 
-## tools/ の構成
+## ファイル構成
 
 | ファイル | 役割 | 区分 |
 |---|---|---|
-| `convert.mjs` | オーケストレータ。`extract-bundle` 実行後、`convert.config.json` の `postBuild` フックを順に呼ぶ | 汎用 |
-| `extract-bundle.mjs` | 設定駆動の変換本体（アセット/フォント/CSS/断片/静的 `.php` を生成） | 汎用 |
-| `lib/config.mjs` | `convert.config.json` ローダ。パスは **ROOT（本リポジトリ直下）基準**で解決。postBuild フックは `TOOLS_DIR`（`tools/`）基準で解決するため `project/xxx.mjs` のようなサブディレクトリ指定も可 | 汎用 |
-| `convert.bat` / `convert.ps1` | launcher | 汎用 |
-| `analyze.mjs` / `dump-content.mjs` | 診断・抽出 | 汎用 |
-| `deploy-prep.mjs` / `deploy-prep.bat` | 本番FTP用デプロイツリー生成（配信物からコメント除去。→「本番デプロイ準備」） | 汎用 |
-| `project/*.mjs` | 動的ページを組み立てる postBuild フック（例 `project/build-index.mjs`） | **案件固有・追跡外** |
-| `convert.config.json` | 案件別設定（`pages`/`font`/`navExtra`/`postBuild`/`publicDir` 等） | **案件固有・追跡外** |
-| `convert.config.sample.json` | `convert.config.json` の書式サンプル | 汎用 |
+| `tools/convert.mjs` | オーケストレータ。`extract-bundle` 実行後、設定の `postBuild` フックを順に呼ぶ | 汎用 |
+| `tools/extract-bundle.mjs` | 設定駆動の変換本体（アセット/フォント/CSS/断片/静的 `.php` を生成） | 汎用 |
+| `tools/lib/config.mjs` | 設定ローダ。`--config` 必須。パスは **ROOT（本リポジトリ直下）基準**で解決。postBuild フックは `TOOLS_DIR`（`tools/`）基準で解決するため `project/xxx.mjs` のようなサブディレクトリ指定も可 | 汎用 |
+| `tools/convert.bat` / `convert.ps1` | launcher（引数は素通し） | 汎用 |
+| `tools/analyze.mjs` / `dump-content.mjs` | 診断・抽出 | 汎用 |
+| `tools/deploy-prep.mjs` / `deploy-prep.bat` | 本番FTP用デプロイツリー生成（配信物からコメント除去。→「本番デプロイ準備」） | 汎用 |
+| `tools/project/{案件名}/*.mjs` | 動的ページを組み立てる postBuild フック | **案件固有・追跡外** |
+| `configs/{案件名}.json` | 案件別設定（`pages`/`font`/`navExtra`/`postBuild`/`publicDir` 等） | **案件固有・追跡外** |
+| `configs/_sample.json` | 案件別設定の書式サンプル（キーの意味・制約はこのファイルの `_doc` に記載） | 汎用 |
 
-**横展開時に触るのは基本 `convert.config.json` のみ**。動的ページ用の postBuild（`tools/project/` 配下）だけが案件固有で、いずれも追跡外。
+**横展開時に触るのは基本 `configs/{案件名}.json` のみ**。動的ページ用の postBuild（`tools/project/` 配下）だけが案件固有で、いずれも追跡外。
 
 ---
 
@@ -78,7 +89,7 @@ mockups/*.html ──[ tools/convert ]──▶ build/（中間生成物）─�
                                     <publicDir> + ../{案件名}/lib ──[ tools/deploy-prep ]──▶ build/deploy/{案件名}/（FTPアップ対象）
 ```
 
-- **出力先**は `convert.config.json` の `publicDir`（隣に並ぶ案件リポ＝`../{案件名}/public`）。`lib/config.mjs` が ROOT 基準で絶対パスへ解決する。
+- **出力先**は `configs/{案件名}.json` の `publicDir`（隣に並ぶ案件リポ＝`../{案件名}/public`）。`lib/config.mjs` が ROOT 基準で絶対パスへ解決する（設定ファイルの位置基準ではないため、`configs/` へ移しても値は変わらない）。
 
 ---
 
@@ -96,9 +107,12 @@ mockups/*.html ──[ tools/convert ]──▶ build/（中間生成物）─�
 ソースに残している設計意図コメント（CSS コメント等）を本番へ配信しないため、FTP アップ前に**デプロイツリーを生成**する:
 
 ```
-npm run deploy-prep        # = node tools/deploy-prep.mjs
-tools/deploy-prep.bat      # ダブルクリック / 実行（Windows）
+npm run deploy-prep -- --config configs/{案件名}.json
+node tools/deploy-prep.mjs --config configs/{案件名}.json
+tools/deploy-prep.bat --config configs/{案件名}.json   # 引数は素通しされる
 ```
+
+convert と同じ設定ファイルを読む（`publicDir` から対象を決める）ため、**ここでも `--config` は必須**。ダブルクリック起動は使わない。
 
 `build/deploy/{案件名}/`（毎回作り直し）へ `<publicDir>` → `public/`・その親の `lib/` → `lib/` をコピーし、次の変換を行う（`publicDir` の親ディレクトリ＝案件リポ直下を自動で辿り、そのディレクトリ名を `{案件名}` に使う）。**FTP では案件リポから直接ではなく、この `build/deploy/{案件名}/` の中身をアップする**（public だけ上げて lib を上げ忘れる事故——未定義関数で全フロント 500——の防止も兼ねる）:
 
@@ -115,10 +129,10 @@ tools/deploy-prep.bat      # ダブルクリック / 実行（Windows）
 
 ## 新規案件への流用
 
-1. `tools/convert.config.sample.json` をコピーして設定を作る（追跡外）。1案件だけなら `tools/convert.config.json`、**複数案件を並行するなら `tools/convert.config.{案件名}.json`** にして実行時に `--config` で指定する
+1. `configs/_sample.json` をコピーして **`configs/{案件名}.json`** を作る（追跡外。案件名以外のファイル名にはしない）
 2. その案件の `mockups/`（デザイン原本）を **`mockups/{案件名}/`** へ用意する
 3. 設定を案件に合わせて調整（`publicDir` は隣に clone した `../{案件名}/public`、`mockDir` は `mockups/{案件名}`、`buildDir` は `build/{案件名}`。ほか `pages`・`font`・`navExtra`・`postBuild`）
-4. `npm run convert`（案件別 config なら `npm run convert -- --config tools/convert.config.{案件名}.json`）。表示された対象案件を確認して `y`
+4. `npm run convert -- --config configs/{案件名}.json`。表示された対象案件を確認して `y`
 5. 生成された案件の `public/` を、その案件リポ側で commit・デプロイ
 
 動的ページ用の postBuild フックは案件ごとに **`tools/project/{案件名}/`** へ用意し、`"postBuild": ["project/{案件名}/build-index.mjs"]` と書く（追跡外）。1階層深くなるため、フック内の import は `../../lib/config.mjs` になる。静的ページのみで構成するなら `postBuild` は `[]` でよい。
