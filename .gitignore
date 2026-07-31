@@ -6,7 +6,11 @@
 
 # 案件固有の変換設定（convert.config.sample.json をコピーして案件ごとに作る。
 # cms-core が config.php を追跡せず config.sample.php だけを配る流儀に揃える）
-/tools/convert.config.json
+# 複数案件を1端末で並行するときは convert.config.{案件名}.json に分けて
+# --config で明示指定するため、ワイルドカードで除外し雛形だけを否定パターンで戻す
+# （否定は後勝ちなので、必ずこの順序を保つこと）。
+/tools/convert.config*.json
+!/tools/convert.config.sample.json
 
 # 案件固有の postBuild フック（HTML 文字列リテラル依存で汎用化できない動的ページ組み立て）
 /tools/project/
