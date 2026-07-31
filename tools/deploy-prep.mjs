@@ -1,13 +1,15 @@
-// 本番 FTP アップ用のデプロイツリーを build/deploy/ に生成する（汎用・依存なし）。
+// 本番 FTP アップ用のデプロイツリーを build/deploy/{案件名}/ に生成する（汎用・依存なし）。
 //
 // 背景: リポジトリのソースには設計意図コメントを残す方針（CLAUDE.md）だが、
 //       CSS コメントと HTML コメントはそのままブラウザへ配信され、誰でも読めてしまう。
 //       そこで「ソースは読みやすいまま・配信物からだけコメントを剥がす」変換をここで行う。
 //
 // 処理内容:
-//   - site/public と site/lib を build/deploy/ へコピー
+//   - <publicDir> とその親の lib/ を build/deploy/{案件名}/ へコピー
 //     （public だけ上げて lib を上げ忘れると未定義関数で全フロント 500 になるため、
-//       デプロイ単位を「このツリーごと」に固定する狙いも兼ねる）
+//       デプロイ単位を「このツリーごと」に固定する狙いも兼ねる。
+//       出力パスに案件名を挟むのは、複数案件を並行して扱うときに FTP で
+//       アップロード元を取り違える事故を防ぐため）
 //   - *.css : /* ... */ コメントを除去（content:"*/" のような文字列内は誤爆しないよう解析する）
 //   - *.php : HTML 領域の <!-- ... --> を除去する【安全網】。
 //             本来はソース側で PHP コメント（<?php /* ... */ ?>）に書く規約であり、
@@ -18,7 +20,7 @@
 //                ローカルの検証用画像で本番を上書きしないため）。.htaccess（PHP実行禁止）のみ維持。
 //
 // 使い方: npm run deploy-prep（= node tools/deploy-prep.mjs）／tools/deploy-prep.bat
-//         FTP では build/deploy/ の中身（public/・lib/）を本番の対応ディレクトリへアップする。
+//         FTP では build/deploy/{案件名}/ の中身（public/・lib/）を本番の対応ディレクトリへアップする。
 //         config/config.php と data/app.sqlite は本番サーバ上で管理し、このツリーには含めない。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -152,11 +154,15 @@ function main() {
     ? process.argv[process.argv.indexOf('--config') + 1]
     : undefined);
 
-  const publicDir = cfg.publicDirAbs;                 // 例: <ROOT>/site/public
-  const siteDir = path.dirname(publicDir);            // 例: <ROOT>/site
+  const publicDir = cfg.publicDirAbs;                 // 例: <ROOT>/../{案件名}/public
+  const siteDir = path.dirname(publicDir);            // 例: <ROOT>/../{案件名}
   const libDir = path.join(siteDir, 'lib');
   const uploadsDir = path.join(publicDir, 'uploads');
-  const outDir = path.join(ROOT, 'build', 'deploy');
+  // 出力先に案件名（案件リポのディレクトリ名）を挟む。取り違えが起きるのは FTP クライアントで
+  // アップロード元を選ぶ瞬間＝ツールの外なので、パス自体に案件名を含めて構造的に防ぐ。
+  // 削除対象も自案件のサブツリーだけになり、他案件の準備済みツリーを壊さない。
+  const projectName = path.basename(siteDir);
+  const outDir = path.join(ROOT, 'build', 'deploy', projectName);
 
   if (!fs.existsSync(publicDir)) {
     console.error(`[deploy-prep] publicDir が見つかりません: ${publicDir}`);
@@ -203,6 +209,9 @@ function main() {
     }
   }
 
+  // コピー元も出力する（どの案件を対象に実行したかをログだけで追えるようにする）
+  console.log(`[deploy-prep] 対象案件: ${projectName}`);
+  console.log(`[deploy-prep] コピー元: ${publicDir}`);
   console.log(`[deploy-prep] 出力: ${outDir}`);
   console.log(`[deploy-prep] CSS ${cssCount} ファイルからコメント除去（計 ${cssSaved} バイト削減）`);
   if (notices.length) {
@@ -211,7 +220,7 @@ function main() {
   } else {
     console.log('[deploy-prep] .php に HTML コメントはありません（規約OK）');
   }
-  console.log('[deploy-prep] FTP では build/deploy/ の中身（public/・lib/）をアップしてください。');
+  console.log(`[deploy-prep] FTP では build/deploy/${projectName}/ の中身（public/・lib/）をアップしてください。`);
 }
 
 main();
